@@ -1,0 +1,118 @@
+
+
+
+
+# Sankey Diagram
+```{r}
+library(networkD3)
+library(tidyverse)
+library(viridis)
+library(patchwork)
+library(hrbrthemes)
+library(circlize)
+```
+
+
+```{r}
+# Load energy projection data
+# Load dataset from github
+data <- read.table("https://raw.githubusercontent.com/holtzy/data_to_viz/master/Example_dataset/13_AdjacencyDirectedWeighted.csv", header=TRUE)
+
+# I need a long format
+data_long <- data %>%
+  rownames_to_column %>%
+  gather(key = 'key', value = 'value', -rowname) %>%
+  filter(value > 0)
+colnames(data_long) <- c("source", "target", "value")
+data_long$target <- paste(data_long$target, " ", sep="")
+
+# From these flows we need to create a node data frame: it lists every entities involved in the flow
+nodes <- data.frame(name=c(as.character(data_long$source), as.character(data_long$target)) %>% unique())
+ 
+# With networkD3, connection must be provided using id, not using real name like in the links dataframe.. So we need to reformat it.
+data_long$IDsource=match(data_long$source, nodes$name)-1 
+data_long$IDtarget=match(data_long$target, nodes$name)-1
+
+# prepare colour scale
+ColourScal ='d3.scaleOrdinal() .range(["#FDE725FF","#B4DE2CFF","#6DCD59FF","#35B779FF","#1F9E89FF","#26828EFF","#31688EFF","#3E4A89FF","#482878FF","#440154FF"])'
+
+# Make the Network
+sankeyNetwork(Links = data_long, Nodes = nodes,
+                     Source = "IDsource", Target = "IDtarget",
+                     Value = "value", NodeID = "name", 
+                     sinksRight=FALSE, colourScale=ColourScal, nodeWidth=40, fontSize=13, nodePadding=20)
+```
+
+```{r}
+data_long.hip <- data.frame(source = c(ego2.res.cluster_1.gene,ego2.res.cluster_2.gene,
+                                       ego2.res.cluster_3.gene,ego2.res.cluster_4.gene,ego2.res.cluster_5.gene),
+                            target = c(rep("Wnt",8),rep("Kinase",11),
+                                       rep("Axon",16),rep("Other",14)))
+nodes <- data.frame(name = unique(c(data_long.hip$source, data_long.hip$target)))
+
+
+data_long.hip$IDsource <- match(data_long.hip$source, nodes$name) - 1
+data_long.hip$IDtarget <- match(data_long.hip$target, nodes$name) - 1
+
+links <- data.frame(source = data_long.hip$IDsource, target = data_long.hip$IDtarget, value = 1)
+
+sankeyNetwork(Links = links, Nodes = nodes, Source = "source",
+              Target = "target", Value = "value", NodeID = "name")
+
+```
+
+```{r}
+library(ggalluvial)
+vaccinations
+ggplot(data = vaccinations,
+       aes(axis1 = response, axis2 = survey, y = freq)) +
+  geom_alluvium(aes(fill = response)) +
+  geom_stratum() +
+  geom_text(stat = "stratum",
+            aes(label = after_stat(stratum))) +
+  scale_x_discrete(limits = c("Survey", "Response"),
+                   expand = c(0.15, 0.05)) +
+  theme_void()
+
+```
+
+```{r}
+data_long.hip <- data.frame(source = c(ego2.res.cluster_1.gene,ego2.res.cluster_2.gene,
+                                       ego2.res.cluster_3.gene,ego2.res.cluster_4.gene,ego2.res.cluster_5.gene),
+                            target = c(rep("Wnt",8),rep("Kinase",11),
+                                       rep("Axon",16),rep("Other",14)))
+data_long.hip$freq <- 1
+
+data_long.hip$source <- factor(data_long.hip$source,
+                               levels = mix.genes[row_order(p.complexhtmap)])
+
+data_long.hip[data_long.hip$source == "Lrp1",]$freq <- 1/2
+data_long.hip[data_long.hip$source == "Znrf3",]$freq <- 1/2
+data_long.hip[data_long.hip$source == "Tnfaip3",]$freq <- 1/3
+data_long.hip[data_long.hip$source == "Tmem64",]$freq <- 1/2
+data_long.hip[data_long.hip$source == "Fzd4",]$freq <- 1/4
+data_long.hip[data_long.hip$source == "Kitl",]$freq <- 1/2
+data_long.hip[data_long.hip$source == "Egr1",]$freq <- 1/2
+data_long.hip[data_long.hip$source == "Cbs",]$freq <- 1/3
+data_long.hip[data_long.hip$source == "Sfrp5",]$freq <- 1/2
+data_long.hip[data_long.hip$source == "Oxt",]$freq <- 1/2
+
+data_long.hip$target <- factor(data_long.hip$target, levels = c("Wnt","Kinase","Axon","Other"))
+
+ggplot(data = data_long.hip,
+       aes(axis1 = source, axis2 = target, y = freq)) +
+  geom_alluvium(aes(fill = target)) +
+  geom_stratum() +
+  geom_text(stat = "stratum",
+            aes(label = after_stat(stratum))) +
+  scale_x_discrete(limits = c("source", "target"),
+                   expand = c(0.15, 0.05)) +
+  theme_void()
+
+ego2.res$pathway_class <- ptree.data[match(ptree.data$label,ego2.res$Description),]$group
+
+```
+
+# PCA refer to Fig5.rmd
+
+

@@ -1,0 +1,218 @@
+
+
+
+
+# compare results
+```{r}
+
+res_1 <- results(dds,
+               contrast = c('condition',"ffPos_F","ffPos_M"))
+res_1 <- as.data.frame(res_1)
+res_1 <- res_1[!is.na(res_1$padj),]
+
+res_2 <- results(dds,
+               contrast = c('condition','wtPos_F','wtPos_M'))
+res_2 <- as.data.frame(res_2)
+res_2 <- res_2[!is.na(res_2$padj),]
+
+
+res_3 <- results(dds,
+               contrast = c('condition','ffNeg_F','ffNeg_M'))
+res_3 <- as.data.frame(res_3)
+res_3 <- res_3[!is.na(res_3$padj),]
+
+
+res_4 <- results(dds,
+               contrast = c('condition','wtNeg_F','wtNeg_M'))
+
+res_4 <- as.data.frame(res_4)
+res_4 <- res_4[!is.na(res_4$padj),]
+```
+
+
+
+
+# Transformed Volcano Plot
+```{r}
+res.1 <- as.data.frame(res_1)
+res.1$comaprison <- "ffPos_M vs ffPos_F"
+res.1$gene <- rownames(res.1)
+
+res.2 <- as.data.frame(res_2)
+res.2$comaprison <- "wtPos_M vs wtPos_F"
+res.2$gene <- rownames(res.2)
+
+res.3 <- as.data.frame(res_3)
+res.3$comaprison <- "ffNeg_M vs ffNeg_F"
+res.3$gene <- rownames(res.3)
+
+res.4 <- as.data.frame(res_4)
+res.4$comaprison <- "wtNeg_M vs wtNeg_F"
+res.4$gene <- rownames(res.4)
+
+
+marker_condition <- rbind(res.1,res.2,
+                          res.3,res.4)
+marker_condition <- as.data.frame(marker_condition)
+
+# Create a column labeling all the significant genes
+marker_condition$sig <- ""
+marker_condition$sig[abs(marker_condition$log2FoldChange) > log2(1.2) & marker_condition$padj < 0.05] <- "sig"
+
+# Upregulated genes
+marker_condition$sig_updown <- ""
+marker_condition$sig_updown[marker_condition$log2FoldChange > log2(1.2) & marker_condition$padj < 0.05] <- "up"
+marker_condition$sig_updown[marker_condition$log2FoldChange < -log2(1.2) & marker_condition$padj < 0.05] <- "down"
+marker_condition$sig_updown <- factor(marker_condition$sig_updown, levels = c("up","down",""))
+
+# Categorize the different comparisons
+marker_condition$sig2 <- paste(marker_condition$comaprison,marker_condition$sig,sep = "_")
+marker_condition$sig2[str_detect(marker_condition$sig2,"_$")] <- "not_sig"
+marker_condition$sig2 <- str_replace(marker_condition$sig2,"_sig","")
+marker_condition$sig2 <- factor(marker_condition$sig2,levels = c("not",c("wtNeg_M vs wtNeg_F","ffNeg_M vs ffNeg_F",
+                                                                             "wtPos_M vs wtPos_F","ffPos_M vs ffPos_F")))
+
+# set factor levels for comparisons
+marker_condition$comaprison <- factor(marker_condition$comaprison,levels = c("wtNeg_M vs wtNeg_F","ffNeg_M vs ffNeg_F",
+                                                                             "wtPos_M vs wtPos_F","ffPos_M vs ffPos_F"))
+marker_condition <- marker_condition%>%arrange(comaprison,sig2)
+
+
+marker_condition$log2FoldChange[marker_condition$log2FoldChange > 5] <- 5
+marker_condition$log2FoldChange[marker_condition$log2FoldChange < c(-5)] <-  -5
+
+
+marker_condition <- marker_condition %>%
+  mutate(gene_type = ifelse(gene %in% sex_gene$GeneSymbol, "Sex-related", "Autosomal"))
+```
+
+
+```{r}
+color_ct <- c("#5b9bd5","#ff0000","#70ad47","#ffff08")
+names(color_ct) <- sort(unique(as.character(marker_condition$comaprison)))
+
+color_updown <- c("#dee1e6","blue","red")
+names(color_updown) <- sort(unique(as.character(marker_condition$sig_updown)))
+```
+
+
+
+```{r}
+marker_condition %>% ggplot(aes(x=comaprison,y=log2FoldChange,color=sig2))+geom_jitter(width = 0.25,size=0.5)+
+  scale_color_manual(values = c(color_ct,"not"="#dee1e6"))+
+  # scale_y_continuous("Arep VS Brep, average log2FC",expand = c(0.02,0))+
+  theme_bw()+
+  theme(
+    panel.grid = element_blank(),
+    legend.position = "none",
+    axis.text.x.bottom = element_text(angle = 45,hjust = 1,size = 14,color = "black"),
+    axis.text.y.left = element_text(size = 14,color = "black"),
+    axis.title.x.bottom = element_blank(),
+    axis.title.y.left = element_text(size = 16)
+  )
+
+
+marker_condition %>% ggplot(aes(x=comaprison,y=log2FoldChange,color=sig_updown,shape = gene_type))+geom_jitter(width = 0.25,size=2)+
+  scale_color_manual(values = c(color_updown))+
+  scale_shape_manual(values = c("Sex-related" = 17, "Autosomal" = 16)) +
+  theme_bw()+
+  theme(
+    panel.grid = element_blank(),
+    legend.position = "none",
+    axis.text.x.bottom = element_text(angle = 45,hjust = 1,size = 14,color = "black"),
+    axis.text.y.left = element_text(size = 14,color = "black"),
+    axis.title.x.bottom = element_blank(),
+    axis.title.y.left = element_text(size = 16)
+  )
+
+
+marker_condition %>% ggplot(aes(x=comaprison,y=log2FoldChange,color=sig_updown,shape = gene_type))+geom_jitter(width = 0.25,size=2)+
+  scale_color_manual(values = c(color_updown),"not"="#dee1e6")+
+  scale_shape_manual(values = c("Sex-related" = 17, "Autosomal" = 16)) +
+  theme_bw()+
+  theme(
+    panel.grid = element_blank(),
+    legend.position = "none",
+    axis.text.x.bottom = element_text(angle = 45,hjust = 1,size = 14,color = "black"),
+    axis.text.y.left = element_text(size = 14,color = "black"),
+    axis.title.x.bottom = element_blank(),
+    axis.title.y.left = element_text(size = 16)
+  )+
+  geom_text_repel(data = filter(marker_condition, gene %in% sex.gene),
+                  mapping = aes(label = filter(marker_condition, gene %in% sex.gene)$gene),
+                  size = 3, hjust = 1, vjust = 1)
+
+
+
+marker_condition %>% ggplot(aes(x=comaprison,y=log2FoldChange,color=sig_updown))+geom_jitter(width = 0.25,size=2)+
+  scale_color_manual(values = c(color_updown))+
+  scale_shape_manual(values = c("Sex-related" = 23, "Autosomal" = 16)) +
+  theme_bw()+
+  theme(
+    panel.grid = element_blank(),
+    legend.position = "none",
+    axis.text.x.bottom = element_text(angle = 45,hjust = 1,size = 14,color = "black"),
+    axis.text.y.left = element_text(size = 14,color = "black"),
+    axis.title.x.bottom = element_blank(),
+    axis.title.y.left = element_text(size = 16))+
+  geom_text_repel(data = filter(marker_condition, gene %in% sex.sig),
+                  mapping = aes(label = filter(marker_condition, gene %in% sex.sig)$gene),
+                  size = 3, hjust = 1, vjust = 1)
+
+```
+
+
+
+
+
+
+# Venn Diagram
+```{r}
+female_mutual <- list(
+ffPos_F=rownames(res_1)[res_1$log2FoldChange > log2(1.2) & res_1$padj <0.05],#"ffPos_F","ffPos_M"
+wtPos_F=rownames(res_2)[res_2$log2FoldChange > log2(1.2) & res_2$padj <0.05],#'wtPos_F','wtPos_M'
+ffNeg_F=rownames(res_3)[res_3$log2FoldChange > log2(1.2) & res_3$padj <0.05],#'ffNeg_F','ffNeg_M'
+wtNeg_F=rownames(res_4)[res_4$log2FoldChange > log2(1.2) & res_4$padj <0.05] #'wtNeg_F','wtNeg_M'
+)
+
+ggvenn(female_mutual, c("wtNeg_F",
+                        "ffNeg_F",
+                        "wtPos_F",
+                        "ffPos_F"),
+             fill_color = c("#ffff08","#70ad47","#ff0000","#5b9bd5"),
+             show_percentage = F,
+             text_size = 10)+
+  theme(plot.title = element_text(hjust = 0.5,
+                                  size = 0))
+
+
+
+male_mutual <- list(
+ffPos_M=rownames(res_1)[res_1$log2FoldChange < -log2(1.2) & res_1$padj <0.05],#"ffPos_F","ffPos_M"
+wtPos_M=rownames(res_2)[res_2$log2FoldChange < -log2(1.2) & res_2$padj <0.05],#'wtPos_F','wtPos_M'
+ffNeg_M=rownames(res_3)[res_3$log2FoldChange < -log2(1.2) & res_3$padj <0.05],#'ffNeg_F','ffNeg_M'
+wtNeg_M=rownames(res_4)[res_4$log2FoldChange < -log2(1.2) & res_4$padj <0.05] #'wtNeg_F','wtNeg_M'
+)
+
+ggvenn(male_mutual, c("wtNeg_M",
+                      "ffNeg_M",
+                      "wtPos_M",
+                      "ffPos_M"),
+             fill_color = c("#ffff08","#70ad47","#ff0000","#5b9bd5"),
+             show_percentage = F,
+             text_size = 10)+
+  theme(plot.title = element_text(hjust = 0.5,
+                                  size = 0))
+```
+
+
+
+
+
+
+
+
+
+
+
+

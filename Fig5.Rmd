@@ -1,0 +1,168 @@
+
+
+
+
+```{r}
+library(glmmSeq)
+library(emmeans)
+library(volcano3D)
+library(plotly)
+library(fmsb)
+```
+
+
+# Mix model
+```{r}
+disp <- setNames(dispersions(dds), rownames(raw_counts.HIP))
+sizeFactor <- estimateSizeFactorsForMatrix(raw_counts.HIP)
+```
+
+```{r}
+sample_table.HIP$phenotype <- ifelse(
+  sample_table.HIP$Condition == "Egr1,Cre(+)", 'KO',
+  'Normal')
+
+a <- data.frame(matrix(unlist(str_split(sample_table.HIP$Condition, ",")), ncol = 2, byrow=TRUE))
+
+sample_table.HIP$genotype <- a$X1
+sample_table.HIP$Cre <- ifelse(
+  a$X2 == "Cre(+)", 'Pos',
+  'Neg')
+```
+
+
+
+```{r}
+glmm_res <- glmmSeq(~genotype*Cre+Sex+ (1|sample_id), # phenotype+
+                    countdata = raw_counts.HIP,
+                    metadata = sample_table.HIP,
+                    dispersion = disp,
+                    sizeFactors = sizeFactor,
+                    progress = T,
+                    cores = 10)
+
+glmm_res <- glmmQvals(glmm_res)
+
+glmm_stat <- as.data.frame(glmm_res@stats)
+```
+
+
+# Venn diagram
+```{r}
+phenotype.gene <- rownames(glmm_stat)[glmm_stat$qvals.genotype.Cre < 0.05]
+cre.gene <- rownames(glmm_stat)[glmm_stat$qvals.Cre < 0.05]
+sex.gene <- rownames(glmm_stat)[glmm_stat$qvals.Sex < 0.05]
+genotype.gene <- rownames(glmm_stat)[glmm_stat$qvals.genotype < 0.05]
+```
+
+```{r}
+mix.model.overall <- list(floxp = genotype.gene,
+                          Cre = cre.gene,
+                          Egr1_KO = phenotype.gene)
+
+ggvenn(mix.model.overall,
+       c("floxp","Cre","Egr1_KO"),
+       fill_color = c("#70ad47","#ff0000","#5b9bd5"),
+       show_percentage = F,
+       text_size = 10)
+```
+
+
+
+# Heatmap
+```{r}
+floxp.unique.gene <- genotype.gene[! genotype.gene %in% c(phenotype.gene,cre.gene)]
+cre.unique.gene <- cre.gene[! cre.gene %in% c(phenotype.gene,genotype.gene)]
+ko.unique.gene <- phenotype.gene[! phenotype.gene %in% c(genotype.gene,cre.gene)]
+```
+
+
+
+```{r}
+dat <- as.data.frame(counts(dds,normalized =T))
+
+mix.genes <- c(floxp.unique.gene,cre.unique.gene)
+
+
+mix.genes.df <- data.frame(mix.genes = mix.genes, Gene_Category = c(rep("floxp",5),
+                                                                    rep("Cre",18)))
+
+mix.genes.df$Gene_Category <- factor(mix.genes.df$Gene_Category,levels = c("floxp","Cre"))
+
+n <- t(scale(t(dat[mix.genes,])))
+n[n>3] = 3 
+n[n< -3] = -3
+
+
+column_ha  <- HeatmapAnnotation(Sex = sample_table.HIP$Sex,
+                                Condition = sample_table.HIP$Condition,
+                                col = list(Sex = c("F" = "red", "M" = "blue"),
+                                           Condition = c("wt,Cre(-)" = "#ffff08","wt,Cre(+)"= "#ff0000",
+                                                         "Egr1,Cre(-)" = "#70ad47", "Egr1,Cre(+)" = "#5b9bd5")))
+
+
+row_ha <-  rowAnnotation(Gene_Category =  factor(mix.genes.df$Gene_Category,
+                                               levels = c("floxp","Cre","Egr1-KO","Shared Genes")),
+                         col = list(Gene_Category = c("floxp" = "#70ad47","Cre" = "#ff0000")))
+
+
+# # Prepare the row_order and store the indices
+# row_order <- hclust(dist(n, method = "euclidean"))$order
+# 
+# # Find the position of Egr1 gene in the reordered heatmap
+# egr1_pos_reordered <- which(mix.genes.df$mix.genes[row_order] == "Egr1")
+# 
+# # Use the updated position in the anno_mark() function
+# right_anno <- rowAnnotation(foo = anno_mark(at = egr1_pos_reordered, labels = "Egr1"))
+
+
+
+Heatmap(n,
+        name = "Expression",
+        column_title = "",
+        col = c("blue","white","red"),
+        cluster_columns = F,
+        cluster_rows = T,
+        show_row_names = T,
+        show_row_dend = F,
+        top_annotation = column_ha,
+        left_annotation = row_ha,
+        row_split = factor(mix.genes.df$Gene_Category,levels = c("floxp","Cre")),
+        row_gap = unit(3, "mm"),
+        show_column_names = F) # 850 *600
+```
+
+
+
+#　PCA
+```{r}
+rld <- rlog(dds)[target_gene,] # target_gene are the intersection genes
+pcaData <- plotPCA(rld, intgroup=c("Condition", "Sex"), returnData=T)
+percentVar <- round(100*attr(pcaData, "percentVar"))
+
+pca <- ggplot(pcaData, aes(PC1, PC2, color=Condition, shape=Sex)) + 
+	geom_point(size=3) + 
+  scale_shape_manual(values=c(16,15)) +
+  scale_color_manual(values=c('#ffff08','#ff0000', '#70ad47','#5b9bd5')) +
+	ggtitle("Hippocampus KO 104 union of mix and 6vs18 gene PCA") + 
+	xlab(paste0("PC1: ", percentVar[1], "% variance")) + 
+	ylab(paste0("PC2: ", percentVar[2], "% variance")) +
+  theme(plot.title = element_text(hjust = 0.5),
+        panel.background = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(size = 2,fill = NA))
+pca
+# size = 600*500
+
+ggplot(pcaData, aes(PC1, PC2, color= Condition, shape=Sex)) + 
+  scale_shape_manual(values=c(16,15)) +
+  scale_color_manual(values=c('#ffff08','#ff0000', '#70ad47','#5b9bd5')) +
+  geom_text(aes(label = name)) +
+	ggtitle("Hippocampus PCA") + 
+	xlab(paste0("PC1: ", percentVar[1], "% variance")) + 
+	ylab(paste0("PC2: ", percentVar[2], "% variance")) +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+

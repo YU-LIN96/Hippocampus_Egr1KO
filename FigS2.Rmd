@@ -1,0 +1,64 @@
+
+
+
+
+# PCA
+```{r}
+rld <- rlog(dds)
+pcaData <- plotPCA(rld, intgroup=c("Condition", "Sex"),
+                   returnData=T)
+percentVar <- round(100*attr(pcaData, "percentVar"))
+
+pca <- ggplot(pcaData, aes(PC1, PC2, color=Condition, shape=Sex)) + 
+	geom_point(size=3) + 
+  scale_shape_manual(values=c(16,15)) +
+  scale_color_manual(values=c('#ffff08','#ff0000', '#70ad47','#5b9bd5')) +
+	ggtitle("Hippocampus PCA") + 
+	xlab(paste0("PC1: ", percentVar[1], "% variance")) + 
+	ylab(paste0("PC2: ", percentVar[2], "% variance")) +
+  theme(plot.title = element_text(hjust = 0.5),
+      panel.background = element_blank(),
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_blank(),
+      panel.border = element_rect(size = 2,fill = NA))
+pca
+```
+
+
+
+```{r}
+dat <- counts(dds,normalized = T) 
+dat <- as.data.frame(dat)
+
+rld_cor <- cor(dat)
+
+cor <- as.matrix(rld_cor)
+
+col_fun = colorRamp2(c(0, 0.5, 1), c("blue", "white", "red"))
+
+column_ha  <- HeatmapAnnotation(Sex = sample_table.HIP$Sex,
+                                Condtion = sample_table.HIP$Condition,
+                                col = list(Sex = c("F" = "red", "M" = "blue"),
+                                           Condtion = c("wt,Cre(-)" = "#ffff08","wt,Cre(+)"= "#ff0000",
+                                    "Egr1,Cre(-)" = "#70ad47", "Egr1,Cre(+)" = "#5b9bd5")))
+row_ha <-  rowAnnotation(Sex = sample_table.HIP$Sex,
+                                Condtion = sample_table.HIP$Condition,
+                                col = list(Sex = c("F" = "red", "M" = "blue"),
+                                           Condtion = c("wt,Cre(-)" = "#ffff08","wt,Cre(+)"= "#ff0000",
+                                    "Egr1,Cre(-)" = "#70ad47", "Egr1,Cre(+)" = "#5b9bd5")))
+
+Heatmap(cor,
+        name = "Correlation",
+        column_title = "Hipocampus Correlation Heatmap",
+        col = c("blue","white","red"),
+        top_annotation = column_ha,
+        left_annotation = row_ha,
+        show_column_names = F,
+        cluster_rows = F,
+        cluster_columns = F,
+        bottom_annotation = HeatmapAnnotation(
+        text = anno_text(colnames(cor), rot = 315, just = "left"),
+        annotation_height = max_text_width(colnames(cor))
+    ))
+```
+

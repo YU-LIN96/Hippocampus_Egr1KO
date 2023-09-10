@@ -1,0 +1,156 @@
+
+
+
+# Egr1 Expression
+```{r}
+
+dat <- counts(dds,normalized = T) #approach 2
+dat <- as.data.frame(dat)
+
+egr1 <- dat[rownames(dat) == "Egr1",]
+
+egr1 <- as.data.frame(t(egr1))
+
+egr1$group <- sample_table.HIP$condition
+egr1$group <- factor(egr1$group, levels = c("wtNeg_F","ffNeg_F","wtPos_F","ffPos_F",
+                                            "wtNeg_M","ffNeg_M","wtPos_M","ffPos_M"))
+egr1$subgroup <- sample_table.HIP$Condition
+
+
+egr1.p1 <- ggplot(egr1, aes(x = group, y = Egr1, fill = subgroup))+
+  geom_point(stat = "identity")+
+  scale_fill_brewer(palette = "Paired") +
+  labs(x = "Group", y = "Value", fill = "Subgroup")
+
+
+
+egr1.p2 <- ggplot(egr1, aes(x = group, y = Egr1,fill = subgroup)) +
+  geom_boxplot()+
+  geom_jitter()+
+  scale_fill_brewer(palette = "Paired") +
+  labs(x = "Group", y = "Egr1")+
+  theme(plot.title = element_text(hjust = 0.5),
+        panel.background = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(size = 2,fill = NA))
+
+ggplot(egr1, aes(x = group, y = Egr1,fill = subgroup)) +
+  geom_boxplot()+
+  geom_jitter()+
+  scale_fill_manual(values=c('#ffff08','#ff0000', '#70ad47','#5b9bd5'))+
+  labs(x = "Group", y = "Egr1")+
+  theme(plot.title = element_text(hjust = 0.5),
+        panel.background = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(size = 2,fill = NA),
+        axis.text.y = element_text(size = 16))
+```
+
+
+
+
+
+
+# Fig.4D
+```{r}
+sample_table.HIP$phenotype <- factor(sample_table.HIP$phenotype)
+
+dds <- DESeqDataSetFromMatrix(countData = raw_counts.HIP,
+                              colData =  sample_table.HIP, 
+                              design = ~phenotype)
+dds <- DESeq(dds)
+```
+
+
+
+```{r}
+res_koall <- results(dds,contrast = c('phenotype',"Normal","KO"))
+
+res_koall <- as.data.frame(res_koall)
+res_koall <- res_koall[!is.na(res_koall$padj),]
+
+norm.counts
+
+HIP.egr1.6vs18 <- cbind(res_koall, norm.counts[rownames(res_koall),])
+```
+
+
+```{r}
+res_koall$padj[res_koall$padj < 10e-5] <- 10e-5
+
+keyvals <- ifelse(
+  res_koall$log2FoldChange < -log2(1.2) & res_koall$padj < 0.05, 'blue',
+    ifelse(res_koall$log2FoldChange > log2(1.2) & res_koall$padj < 0.05, 'red',
+      'black'))
+names(keyvals)[keyvals == 'red'] <- 'Upregulated'
+names(keyvals)[keyvals == 'black'] <- 'N.S.'
+names(keyvals)[keyvals == 'blue'] <- 'Downregulated'
+
+
+EnhancedVolcano(res_koall,
+    lab = rownames(res_koall),
+    labSize  = 8,
+    selectLab = rownames(res_koall)[which(names(keyvals) %in% c('Upregulated', 'Downregulated'))],
+    colCustom = keyvals,
+    x = 'log2FoldChange',
+    y = 'padj',
+    ylab = bquote(~-Log[10]~ 'Adjusted p'),
+    pCutoff = 0.05,
+    FCcutoff = log2(1.2),
+    subtitle = "",
+    title = bquote("non-Egr1-KO vs Egr1-KO"),
+    legendPosition = 'none',
+    colAlpha = 1, caption = ""
+    ) +
+    ggplot2::coord_cartesian(xlim=c(-5, 5),ylim = c(0,5)) +
+    ggplot2::scale_x_continuous(
+      breaks=c(-5,-2,2,5)) +
+  theme(plot.title = element_text(hjust = 0.5, size = 0),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(size = 2,fill = NA))
+
+```
+
+
+# Heatmap
+```{r}
+dat <- as.data.frame(counts(dds,normalized =T))
+
+mix.genes <- rownames(res_koall)[res_koall$padj < 0.05 & abs(res_koall$log2FoldChange) > log2(1.2)]
+
+
+
+
+n <- t(scale(t(dat[mix.genes,])))
+n[n > 3] = 3 
+n[n < -3] = -3
+
+
+column_ha  <- HeatmapAnnotation(Sex = sample_table.HIP$Sex,
+                                Condition = sample_table.HIP$Condition,
+                                col = list(Sex = c("F" = "red", "M" = "blue"),
+                                           Condition = c("wt,Cre(-)" = "#ffff08","wt,Cre(+)"= "#ff0000",
+                                                         "Egr1,Cre(-)" = "#70ad47", "Egr1,Cre(+)" = "#5b9bd5")))
+
+Heatmap(n,
+        name = "Expression",
+        column_title = "",
+        col = c("blue","white","red"),
+        cluster_columns = F,
+        cluster_rows = T,
+        show_row_names = T,
+        show_row_dend = F,
+        top_annotation = column_ha,
+        show_column_names = F) # 850 *600
+```
+
+
+
+
+
+
+
+
